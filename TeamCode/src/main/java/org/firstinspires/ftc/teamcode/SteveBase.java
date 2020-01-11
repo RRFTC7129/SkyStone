@@ -4,14 +4,22 @@ import com.qualcomm.hardware.bosch.BNO055IMU;
 import com.qualcomm.hardware.bosch.JustLoggingAccelerationIntegrator;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.DigitalChannel;
+import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
+import com.qualcomm.robotcore.util.ReadWriteFile;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
 import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
 import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
+import org.firstinspires.ftc.robotcore.internal.system.AppUtil;
+
+import java.io.File;
 
 public class SteveBase {
 
@@ -20,9 +28,25 @@ public class SteveBase {
     DcMotor motorDriveLB;
     DcMotor motorDriveRF;
     DcMotor motorDriveRB;
+    DcMotor motorCollectionL;
+    DcMotor motorCollectionR;
+    DcMotor motorLiftL;
+    DcMotor motorLiftR;
+    Servo servoFoundationL;
+    Servo servoFoundationR;
+    Servo servoGrabber;
+    CRServo servoGrabberSwivel;
+    CRServo servoFourbarArmL;
+    CRServo servoFourbarArmR;
+    CRServo servoPark;
 
+    DigitalChannel foundationTouchR;  // Hardware Device Object
+    DigitalChannel foundationTouchL;  // Hardware Device Object
     BNO055IMU imu;                  // IMU Gyro itself
     Orientation angles;             // IMU Gyro's Orienting
+    File headingFile = AppUtil.getInstance().getSettingsFile("headingFile");
+
+    ElapsedTime timerOpMode;
 
     double angleTest[] = new double[10];
     int count = 0;
@@ -37,11 +61,15 @@ public class SteveBase {
     double ENCODER_CPR = 537.6;
     double WHEEL_CURCUMFERENCE = 4 * Math.PI;
     double COUNTS_PER_INCH = ENCODER_CPR / WHEEL_CURCUMFERENCE;
-    int ENCODER_DRIVE_ALLOWABLE_ERROR = 7;
+    int ENCODER_DRIVE_ALLOWABLE_ERROR = 20;
     double STARTING_HEADING = 0;
 
     public SteveBase(OpMode theOpMode) {
         opMode = theOpMode;
+
+        // INITIALIZE MOTORS AND SERVOS
+        opMode.telemetry.addLine("Initalizing output devices (motors, servos)...");
+        opMode.telemetry.update();
 
         motorDriveLF = opMode.hardwareMap.dcMotor.get("motorDriveLF");
         motorDriveLB = opMode.hardwareMap.dcMotor.get("motorDriveLB");
@@ -61,6 +89,35 @@ public class SteveBase {
         resetEncoders();
         runWithoutEncoders();
 
+        motorCollectionL = opMode.hardwareMap.dcMotor.get("motorCollectionL");
+        motorCollectionR = opMode.hardwareMap.dcMotor.get("motorCollectionR");
+        motorLiftL = opMode.hardwareMap.dcMotor.get("motorLiftL");
+        motorLiftR = opMode.hardwareMap.dcMotor.get("motorLiftR");
+
+        servoFoundationL = opMode.hardwareMap.servo.get("servoFoundationL");
+        servoFoundationR = opMode.hardwareMap.servo.get("servoFoundationR");
+        servoFoundationL.setPosition(1);
+        servoFoundationR.setPosition(0);
+        
+        servoGrabber = opMode.hardwareMap.servo.get("servoGrabber");
+        servoGrabber.setPosition(0);
+        servoGrabberSwivel = opMode.hardwareMap.crservo.get("servoGrabberSwivel");
+
+        servoFourbarArmL = opMode.hardwareMap.crservo.get("servoFourbarArmL");
+        servoFourbarArmR = opMode.hardwareMap.crservo.get("servoFourbarArmR");
+
+        servoPark = opMode.hardwareMap.crservo.get("servoPark");
+
+        // INITIALIZE SENSORS
+        opMode.telemetry.addLine("Initalizing input devices (sensors)...");
+        opMode.telemetry.update();
+
+        foundationTouchL = opMode.hardwareMap.get(DigitalChannel.class, "foundationTouchL");
+        foundationTouchR = opMode.hardwareMap.get(DigitalChannel.class, "foundationTouchR");
+
+        foundationTouchL.setMode(DigitalChannel.Mode.INPUT);
+        foundationTouchR.setMode(DigitalChannel.Mode.INPUT);
+
         BNO055IMU.Parameters parameters_IMU = new BNO055IMU.Parameters();
         parameters_IMU.angleUnit = BNO055IMU.AngleUnit.RADIANS;
         parameters_IMU.accelUnit = BNO055IMU.AccelUnit.METERS_PERSEC_PERSEC;
@@ -70,6 +127,11 @@ public class SteveBase {
         parameters_IMU.accelerationIntegrationAlgorithm = new JustLoggingAccelerationIntegrator();
         imu = opMode.hardwareMap.get(BNO055IMU.class, "imu3");
         imu.initialize(parameters_IMU);
+
+        timerOpMode = new ElapsedTime();
+
+        opMode.telemetry.addLine("Initialization Succeeded!");
+        opMode.telemetry.update();
     }
 
     public void resetEncoders(){
@@ -108,9 +170,17 @@ public class SteveBase {
         motorDriveRB.setPower(motorPowerRB);
     }
 
+    public boolean isFoundationGrabbed() {
+        // Since getState() returns false for pressed and true for not pressed, we had to apply some logic inverters to return results that make sense.
+        return (!foundationTouchL.getState() || !foundationTouchR.getState())
+                &&
+                servoFoundationL.getPosition() == 0 && servoFoundationR.getPosition() == 1;
+    }
+
     /* =======================AUTONOMOUS EXCLUSIVE METHODS========================= */
     public void selection() {
         // What alliance color are we? (By the way, this is a do-while loop. It always runs at least once because of how it's set up)
+        opMode.telemetry.addLine("Awaiting Autonomous Selection...");
         opMode.telemetry.addData("For blue alliance, press", "X");
         opMode.telemetry.addData("For red alliance, press", "B");
         opMode.telemetry.update();
@@ -122,6 +192,7 @@ public class SteveBase {
         } while(!opMode.gamepad1.x && !opMode.gamepad1.b);
 
         // Parking Preference?
+        opMode.telemetry.addLine("Awaiting Autonomous Selection...");
         opMode.telemetry.addData("To park inside, press", "Y");
         opMode.telemetry.addData("To park outside, press", "A");
         opMode.telemetry.update();
@@ -133,6 +204,7 @@ public class SteveBase {
         } while(!opMode.gamepad1.y && !opMode.gamepad1.a);
 
         // Score SkyStones?
+        opMode.telemetry.addLine("Awaiting Autonomous Selection...");
         opMode.telemetry.addData("To score the SkyStones, press:", "X");
         opMode.telemetry.addData("Otherwise, press", "B");
         opMode.telemetry.update();
@@ -144,6 +216,7 @@ public class SteveBase {
         } while(!opMode.gamepad1.x && !opMode.gamepad1.b);
 
         // Do Foundation Grabbing?
+        opMode.telemetry.addLine("Awaiting Autonomous Selection...");
         opMode.telemetry.addData("To move the foundation in auto, press", "Y");
         opMode.telemetry.addData("Otherwise, press", "A");
         opMode.telemetry.update();
@@ -163,6 +236,10 @@ public class SteveBase {
     }
 
     void encoderDriveMecanum(double baseMotorPower, double distanceInInchesForward, double distancesInInchesStrafing){ //Distance in inches, x and y as direction values, both between 1- and 1
+        angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.RADIANS);
+        double startingHeading = angles.firstAngle;
+        double headingError;
+
         // DOING EPIC MATH (Based on Jamari's TeleOp Driving code from last year)
         double distanceInInches = Math.hypot(distancesInInchesStrafing, distanceInInchesForward);
         double angleDirection = Math.atan2(distanceInInchesForward, distancesInInchesStrafing); // May need to catch an ArithmeticException here
@@ -204,15 +281,23 @@ public class SteveBase {
                 Math.abs(distanceToTargetRB) > ENCODER_DRIVE_ALLOWABLE_ERROR &&
                 ((LinearOpMode)opMode).opModeIsActive()) {
 
+            angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.RADIANS);
+            headingError = startingHeading - angles.firstAngle;
+
+            desiredSpeedLF = (-(drivingPower * (Math.cos(wheelTrajectory + headingError))) * Math.sqrt(2)) - (headingError/2);
+            desiredSpeedLB = (-(drivingPower * (Math.sin(wheelTrajectory + headingError))) * Math.sqrt(2)) - (headingError/2);
+            desiredSpeedRF = ((drivingPower * (Math.sin(wheelTrajectory + headingError))) * Math.sqrt(2)) - (headingError/2);
+            desiredSpeedRB = ((drivingPower * (Math.cos(wheelTrajectory + headingError))) * Math.sqrt(2)) - (headingError/2);
+
             distanceToTargetLF = newTargetLF - motorDriveLF.getCurrentPosition();
             distanceToTargetLB = newTargetLB - motorDriveLB.getCurrentPosition();
             distanceToTargetRF = newTargetRF - motorDriveRF.getCurrentPosition();
             distanceToTargetRB = newTargetRB - motorDriveRB.getCurrentPosition();
 
-            if(Math.abs(distanceToTargetLF) < ENCODER_DRIVE_ALLOWABLE_ERROR + 400) { motorDriveLF.setPower(desiredSpeedLF / 3); } else {motorDriveLF.setPower(desiredSpeedLF);}
-            if(Math.abs(distanceToTargetLB) < ENCODER_DRIVE_ALLOWABLE_ERROR + 400) { motorDriveLB.setPower(desiredSpeedLB / 3); } else {motorDriveLB.setPower(desiredSpeedLB);}
-            if(Math.abs(distanceToTargetRF) < ENCODER_DRIVE_ALLOWABLE_ERROR + 400) { motorDriveRF.setPower(desiredSpeedRF / 3); } else {motorDriveRF.setPower(desiredSpeedRF);}
-            if(Math.abs(distanceToTargetRB) < ENCODER_DRIVE_ALLOWABLE_ERROR + 400) { motorDriveRB.setPower(desiredSpeedRB / 3); } else {motorDriveRB.setPower(desiredSpeedRB);}
+            if(Math.abs(distanceToTargetLF) < ENCODER_DRIVE_ALLOWABLE_ERROR + 400) { motorDriveLF.setPower(desiredSpeedLF / 2); } else {motorDriveLF.setPower(desiredSpeedLF);}
+            if(Math.abs(distanceToTargetLB) < ENCODER_DRIVE_ALLOWABLE_ERROR + 400) { motorDriveLB.setPower(desiredSpeedLB / 2); } else {motorDriveLB.setPower(desiredSpeedLB);}
+            if(Math.abs(distanceToTargetRF) < ENCODER_DRIVE_ALLOWABLE_ERROR + 400) { motorDriveRF.setPower(desiredSpeedRF / 2); } else {motorDriveRF.setPower(desiredSpeedRF);}
+            if(Math.abs(distanceToTargetRB) < ENCODER_DRIVE_ALLOWABLE_ERROR + 400) { motorDriveRB.setPower(desiredSpeedRB / 2); } else {motorDriveRB.setPower(desiredSpeedRB);}
 
             opMode.telemetry.addData("distanceToTargetLF", distanceToTargetLF);
             opMode.telemetry.addData("distanceToTargetLB", distanceToTargetLB);
@@ -235,7 +320,7 @@ public class SteveBase {
         double currentHeading = angles.firstAngle + 180;
         double degreesToTurn = target - currentHeading;
         degreesToTurn += degreesToTurn > 180 ? -360 :
-                degreesToTurn < -180 ?  360 : 0;
+                         degreesToTurn < -180 ? 360 : 0;
         return degreesToTurn;
     }
 
@@ -256,7 +341,7 @@ public class SteveBase {
             /*double POWER_CAP = 45;      // Once we hit this power, we should slow down.
             double DEGREES_TO_POWER = Range.clip(Math.pow(degreesToTurn / POWER_CAP, 1/3), -1, 1);
             double TURN_POWER = DEGREES_TO_POWER * .7;*/
-            double TURN_POWER = Range.clip(Math.signum(degreesToTurn) * (0.1 + (Math.abs(degreesToTurn) / 270)), -1, 1);
+            double TURN_POWER = Range.clip(Math.signum(degreesToTurn) * (0.2 + (Math.abs(degreesToTurn) / 270)), -1, 1);
             setDrivePowerSides(-TURN_POWER, -TURN_POWER);
 
             opMode.telemetry.addData("DegreesToTurn", degreesToTurn);
@@ -281,36 +366,141 @@ public class SteveBase {
         ((LinearOpMode)opMode).sleep(100);
     }
 
-    public void scoreFoundation() {
+    public void grabFoundation() {
         if(allianceColor.equals("RED")) {
-            encoderDriveMecanum(0.5, 26, 0); //drive to foundation
-            encoderDriveMecanum(0.5, 1, 0); //drive to foundation
-            //servoFoundationL.setPosition(1); //grabbing the foundation
-            //servoFoundationR.setPosition(0); //the 1's are placeholders cuz they may not be right but they seemed more right to me than zero but I'm prolly way off XD
-            ((LinearOpMode)opMode).sleep(800);
-            encoderDriveMecanum(-0.5, 0, -4); //drive to foundation
-            imuTurn(-90);
-            encoderDriveMecanum(-0.6, 0, 20 * Math.sqrt(2));
-            encoderDriveMecanum(0.6, 20, 0); //drive to foundation
-            //servoFoundationL.setPosition(0);
-            //servoFoundationR.setPosition(1);
-            ((LinearOpMode)opMode).sleep(300);
+            encoderDriveMecanum(0.42, 26, 0); //drive to foundation
+            encoderDriveMecanum(-0.5, 0, 18); //drive to foundation
+            imuTurn(absoluteHeading(0));
+            encoderDriveMecanum(0.5, 1.5, 0); //drive to foundation
+            while(((LinearOpMode)opMode).opModeIsActive()) {
+                servoFoundationL.setPosition(0);
+                servoFoundationR.setPosition(1);
+                ((LinearOpMode)opMode).sleep(800);
+                if(isFoundationGrabbed()) {
+                    break;
+                }
+                else {
+                    servoFoundationL.setPosition(1);
+                    servoFoundationR.setPosition(0);
+                    ((LinearOpMode)opMode).sleep(600);
+                    encoderDriveMecanum(0.5, 1, 0); //drive to foundation
+                }
+            }
+            encoderDriveMecanum(0.5, 1.5, 0); //drive to foundation
+            encoderDriveMecanum(0.5, -1.5, 0); //drive to foundation
+
         } else if(allianceColor.equals("BLUE")) {
-            encoderDriveMecanum(0.4, 26, 0); //drive to foundation
-            encoderDriveMecanum(-0.4, 0, -12); //drive to foundation
-            encoderDriveMecanum(0.3, 2, 0); //drive to foundation
-            //servoFoundationL.setPosition(1); //grabbing the foundation
-            //servoFoundationR.setPosition(0); //the 1's are placeholders cuz they may not be right but they seemed more right to me than zero but I'm prolly way off XD
-            ((LinearOpMode)opMode).sleep(800);
-            encoderDriveMecanum(-0.4, -30, 0);
-            encoderDriveMecanum(0.3, 3, 0); //drive to foundation
-            //servoFoundationL.setPosition(0);
-            //servoFoundationR.setPosition(1);
-            ((LinearOpMode)opMode).sleep(300);
+            encoderDriveMecanum(0.42, 26, 0); //drive to foundation
+            encoderDriveMecanum(-0.5, 0, -18); //drive to foundation
+            imuTurn(absoluteHeading(0));
+            encoderDriveMecanum(0.5, 3.5, 0); //drive to foundation
+            while(((LinearOpMode)opMode).opModeIsActive()) {
+                servoFoundationL.setPosition(0);
+                servoFoundationR.setPosition(1);
+                ((LinearOpMode)opMode).sleep(800);
+                if(isFoundationGrabbed()) {
+                    break;
+                }
+                else {
+                    servoFoundationL.setPosition(1);
+                    servoFoundationR.setPosition(0);
+                    ((LinearOpMode)opMode).sleep(600);
+                    encoderDriveMecanum(0.5, 1, 0); //drive to foundation
+                }
+            }
+            encoderDriveMecanum(0.6, 1.5, 0); //drive to foundation
+            encoderDriveMecanum(0.6, -1.5, 0); //drive to foundation
         }
     }
 
+    public void turnAndScoreFoundation(){
+        angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES);
+        if(allianceColor.equals ("RED")){
+            while (angles.firstAngle > -85){
+                angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES);
+                setDrivePowerSides(.7, -.3);
+            }
+            setDrivePowerSides(-.3, .45);
+            ((LinearOpMode)opMode).sleep(2500);
+        } else if(allianceColor.equals("BLUE")){
+            while (angles.firstAngle < 85){
+                angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES);
+                setDrivePowerSides(.3, -.8);
+            }
+            setDrivePowerSides(-.45, .3);
+            ((LinearOpMode)opMode).sleep(2500);
+        }
+        servoFoundationL.setPosition(1);
+        servoFoundationR.setPosition(0);
+        ((LinearOpMode)opMode).sleep(600);
+    }
+
+    public void driveToSkybridge() {
+        if(pushingFoundation) {
+            if(allianceColor.equals("RED")) {
+                if(parkingPreference.equals("INSIDE")) {
+                    encoderDriveMecanum(-0.5, 0, -30);
+                    imuTurn(absoluteHeading(-90));
+                    encoderDriveMecanum(0.4, -45, 0);
+                } else if(parkingPreference.equals("OUTSIDE")) {
+                    encoderDriveMecanum(0.4, -45, 0);
+                }
+            } else if(allianceColor.equals("BLUE")) {
+                if(parkingPreference.equals("INSIDE")) {
+                    encoderDriveMecanum(-0.5, 0, 30);
+                    imuTurn(absoluteHeading(90));
+                    encoderDriveMecanum(0.4, -45, 0);
+                } else if(parkingPreference.equals("OUTSIDE")) {
+                    encoderDriveMecanum(0.4, -45, 0);
+                }
+            }
+        } else {
+            if(allianceColor.equals("RED")) {
+                if(parkingPreference.equals("INSIDE")) {
+                    encoderDriveMecanum(-0.4, 0, -30);
+                    imuTurn(absoluteHeading(0));
+                    encoderDriveMecanum(0.4, 26, 0);
+                    encoderDriveMecanum(-0.4, 0, -18);
+                } else if(parkingPreference.equals("OUTSIDE")) {
+                    encoderDriveMecanum(-0.4, 0, -46);
+                }
+            } else if(allianceColor.equals("BLUE")) {
+                if(parkingPreference.equals("INSIDE")) {
+                    encoderDriveMecanum(-0.4, 0, 30);
+                    imuTurn(absoluteHeading(0));
+                    encoderDriveMecanum(0.4, 26, 0);
+                    encoderDriveMecanum(-0.4, 0, 18);
+                } else if(parkingPreference.equals("OUTSIDE")) {
+                    encoderDriveMecanum(-0.4, 0, 46);
+                }
+            }
+        }
+    }
+
+    public void waitForEnd(){
+        while (timerOpMode.seconds() <29){
+        }
+    }
+
+    public void storeHeading(){
+        angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.RADIANS);
+        ReadWriteFile.writeFile(headingFile, String.valueOf(angles.firstAngle));
+        opMode.telemetry.addData("headingFile", "" + ReadWriteFile.readFile(headingFile)); //Store robot heading to phone
+        opMode.telemetry.update();
+    }
+
     /* =======================TELEOP METHODS========================= */
+    public void retrieveHeading() {
+        STARTING_HEADING = Double.parseDouble(ReadWriteFile.readFile(headingFile));
+    }
+    
+    public void resetHeading(){
+        if (opMode.gamepad1.b){ // In case somethine goes wrong, driver can reposition the robot and reset the heading during teleop
+            angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.RADIANS);
+            STARTING_HEADING = angles.firstAngle;
+        }
+    }
+
     public void updateDriveTrain() {
         angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.RADIANS);
 
@@ -344,6 +534,92 @@ public class SteveBase {
         motorDriveLB.setPower(((speed * -(Math.sin(angle)) + turnPower)));
         motorDriveRF.setPower(((speed * (Math.sin(angle))) + turnPower));
         motorDriveRB.setPower(((speed * (Math.cos(angle))) + turnPower));
+
+    }
+
+    public void controlCollection() {
+        //collect if left trigger pressed
+        //needs to be fancified but I don't know how :D
+        if (opMode.gamepad2.right_trigger > .3)
+        {
+            motorCollectionL.setPower(-.5 * opMode.gamepad2.right_trigger);
+            motorCollectionR.setPower(.5 * opMode.gamepad2.right_trigger);
+        }
+        //eject if right trigger is pressed
+        //needs to be fancified but I don't know how :D
+        else if (opMode.gamepad2.left_trigger > .3) {
+            motorCollectionL.setPower(.5 * opMode.gamepad2.left_trigger);
+            motorCollectionR.setPower(-.5 * opMode.gamepad2.left_trigger);
+        }
+
+        else {
+            motorCollectionL.setPower(0);
+            motorCollectionR.setPower(0);
+        }
+    }
+
+    //foundation servos
+    public void controlFoundationServos (){
+        if (opMode.gamepad1.left_bumper){
+            servoFoundationL.setPosition(0);
+            servoFoundationR.setPosition(1);
+        }
+        if (opMode.gamepad1.right_bumper){
+            servoFoundationL.setPosition(1);
+            servoFoundationR.setPosition(0);
+        }
+    }
+
+    public void parkServo(){
+        if (opMode.gamepad2.dpad_down) {
+            servoPark.setPower(1);
+        }
+        else if (opMode.gamepad2.dpad_up){
+            servoPark.setPower(-1);
+        }
+        else {
+            servoPark.setPower(0);
+        }
+    }
+
+    //nub clamp servo code here
+    public void controlServoClaw() {
+        if(opMode.gamepad2.y || opMode.gamepad1.y) {
+            servoGrabber.setPosition(1);
+        }
+        if (opMode.gamepad2.a || opMode.gamepad1.a) {
+            servoGrabber.setPosition(0);
+        }
+    }
+
+    //swivel servo code here
+    public void controlServoGrabberSwivel (boolean b, boolean x) {
+        if (x) {
+            servoGrabberSwivel.setPower(1);
+        }
+        else if (b) {
+            servoGrabberSwivel.setPower(-1);
+        }
+        else {
+            servoGrabberSwivel.setPower(0);
+        }
+    }
+
+    public void controlLift(double rightStick, double leftStick) {
+        motorLiftL.setPower(rightStick/2);
+        motorLiftR.setPower(rightStick/2);
+
+        servoFourbarArmL.setPower(leftStick);
+        servoFourbarArmR.setPower(-leftStick);
+    }
+
+    public void postTelemetry() {
+        opMode.telemetry.addData("servoFoundationL", servoFoundationL.getPosition());
+        opMode.telemetry.addData("servoFoundationR", servoFoundationR.getPosition());
+        opMode.telemetry.addData("foundationTouchL", !foundationTouchL.getState());
+        opMode.telemetry.addData("foundationTouchR", !foundationTouchR.getState());
+        opMode.telemetry.addLine();
+        opMode.telemetry.addData("grabbed?", isFoundationGrabbed());
     }
 
 }
