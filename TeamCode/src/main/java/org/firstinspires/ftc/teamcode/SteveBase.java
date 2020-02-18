@@ -1,7 +1,5 @@
 package org.firstinspires.ftc.teamcode;
 
-import android.graphics.Color;
-
 import com.qualcomm.hardware.bosch.BNO055IMU;
 import com.qualcomm.hardware.bosch.JustLoggingAccelerationIntegrator;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
@@ -17,27 +15,19 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.Range;
 import com.qualcomm.robotcore.util.ReadWriteFile;
 
-import org.firstinspires.ftc.robotcore.external.ClassFactory;
-import org.firstinspires.ftc.robotcore.external.matrices.OpenGLMatrix;
-import org.firstinspires.ftc.robotcore.external.matrices.VectorF;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
 import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
-import org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer;
-import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackable;
-import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackableDefaultListener;
-import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackables;
 import org.firstinspires.ftc.robotcore.internal.system.AppUtil;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
 
 public class SteveBase {
-
+    // OpMode Class
     OpMode opMode;
+    // Every single device on the robot
     DcMotor motorDriveLF;
     DcMotor motorDriveLB;
     DcMotor motorDriveRF;
@@ -54,47 +44,25 @@ public class SteveBase {
     CRServo servoFourbarArmR;
     CRServo servoPark;
     DistanceSensor sensorColor;
+    ColorSensor sensorSkystones;
     DigitalChannel foundationTouchR;
     DigitalChannel foundationTouchL;
-
     BNO055IMU imu;                  // IMU Gyro itself
     Orientation angles;             // IMU Gyro's Orienting
+    // Stores the robot's heading at the end of autonomous to be used in teleop
     File headingFile = AppUtil.getInstance().getSettingsFile("headingFile");
-
+    // Timers
     ElapsedTime timerOpMode;
-    ElapsedTime timerVuforia;
     ElapsedTime timerTravel;
-    public ElapsedTime buttonPress = new ElapsedTime();
     public ElapsedTime transferTimer = new ElapsedTime();
-
-    double angleTest[] = new double[10];
-    int count = 0;
-    double sum;
-    double correct;
-    double attemptsToGrabFoundation = 0;
-
+    // Variables used in Path Selection
     String allianceColor;
-    boolean scoreSkyStones = false;
     String parkingPreference;
+    boolean scoreSkyStones = false;
     boolean pushingFoundation = false;
-
-    String stonePosition = "";
-    private static final VuforiaLocalizer.CameraDirection CAMERA_CHOICE = VuforiaLocalizer.CameraDirection.BACK;
-    private static final boolean PHONE_IS_PORTRAIT = false ;
-    private static final String VUFORIA_KEY = "AeWAmTv/////AAABmcDFtEigK0pigJ8ZWUnm2HgudbXBqZsQ1JV4hkpYHzTSmzjlzztp8vSTsCHrkv+Aao5MuxVg8A+4f4XqpTTNO2OhMu7IDFXkMyn9dSe1EEI6CbGWpnH3fc1dpDCa4JsPI6CmeG1IVGm2L8WrKCTJscnbh4mNnWzphUs1L3AH3Tr1IFe3hVRgPgCzkB/gnbRdK78TDhYe7gnmnrxSSNHUdBOh452wvyQ7L8MZqs5Oy5YOUE9f+0M4npSKdHtw1Q8hxtGiVCqbcqG5lmyoZh4ueh5anG71LLpBAxDkPnCYw8ycGPBIsI+bEvWydpCkwB9snYru2lVh4RRYU8H0bAx2G8/KrLkuO9zNTBjamQfqJmcJ";
-    private static final float mmPerInch = 25.4f;
-    // Constant for Stone Target
-    private static final float stoneZ = 2.00f * mmPerInch;  //height of the center of the stone target off the ground
-    // Class Members
-    private OpenGLMatrix lastLocation = null;
-    private VuforiaLocalizer vuforia = null;
-    private boolean targetVisible = false;
-    private float phoneXRotate    = 0;
-    private float phoneYRotate    = 0;
-    private float phoneZRotate    = 0;
-    VuforiaTrackables targetsSkyStone;
-    List<VuforiaTrackable> allTrackables;
-
+    String skystonePosition = "";
+    String[] skystonePositions = {"LEFT", "CENTER", "RIGHT"};
+    // Variables used in Odometry
     double leftWheelTickDelta = 0;
     double rightWheelTickDelta = 0;
     double strafeWheelTickDelta = 0;
@@ -107,29 +75,39 @@ public class SteveBase {
     double robotHeading = 0;
     double robotHeadingDelta = 0;
     double robotHeadingPrevious = 0;
-    double lockedHeading;
-
+    double robotSpeedInFPS;
+    // Variables used in Autonomous
+    double attemptsToGrabFoundation = 0;
+    // Variables used in the Teleop drive code
+    double angleTest[] = new double[10];
+    int count = 0;
+    double sum;
+    double correct;
+    // Variables used in the Operator drive code
     boolean driveCollect = false;
-    boolean autoTransfer = true;
+    boolean autoTransferEnabled = true;
     int hopperState = 0;
-    float hsvValues[] = {0F, 0F, 0F};
-    final double SCALE_FACTOR = 255;
-
+    int liftPositionLock;
+    boolean liftLockInPlace;
+    // CONSTANTS
     double ENCODER_CPR = 360;
     double WHEEL_CURCUMFERENCE = 2.28;
     double COUNTS_PER_INCH = ENCODER_CPR / WHEEL_CURCUMFERENCE;
-    int ENCODER_DRIVE_ALLOWABLE_ERROR = 20;
     double STARTING_HEADING = 0;
     double STRAFE_WHEEL_OFFSET_CONSTANT = 354; // Unit = DISTANCE / ANGLE
-
     double TARGET_POSITION_ACCURACY_IN_INCHES = 0.5;
+    double WAYPOINT_POSITION_ACCURACY_IN_INCHES = 2;
     double TARGET_HEADING_ACCURACY_IN_DEGREES = 2;
-
+    double SKYSTONE_DETECTION_THRESHHOLD = 60;
+    // State Machine
     private enum TransferState {
         IDLE, LOWERING_LINKAGE, GRABBING, GRABBED;
     }
     TransferState transfer = TransferState.IDLE;
 
+    /** Sets up the Base Class within the OpMode
+     * @param theOpMode the OpMode Class (usually just "this")
+     * */
     public SteveBase(OpMode theOpMode) {
         opMode = theOpMode;
 
@@ -180,6 +158,7 @@ public class SteveBase {
         opMode.telemetry.update();
 
         sensorColor = opMode.hardwareMap.get(DistanceSensor.class, "sensorColor");
+        sensorSkystones = opMode.hardwareMap.get(ColorSensor.class, "sensorSkystones");
 
         foundationTouchL = opMode.hardwareMap.get(DigitalChannel.class, "foundationTouchL");
         foundationTouchR = opMode.hardwareMap.get(DigitalChannel.class, "foundationTouchR");
@@ -205,6 +184,7 @@ public class SteveBase {
 
     }
 
+    /** Just gonna reset the encoders real quick...*/
     public void resetEncoders(){
         motorDriveLF.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         motorDriveLB.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
@@ -212,6 +192,8 @@ public class SteveBase {
         motorDriveRB.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
     }
 
+    /** ... And now we set them to run without the encoders!
+     * (NOTE: they will still return position, but there's no fancy PID control on the motors.)*/
     public void runWithoutEncoders(){
         motorDriveLF.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         motorDriveLB.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -219,21 +201,27 @@ public class SteveBase {
         motorDriveRB.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
     }
 
-    public void runWithEncoders(){
-        motorDriveLF.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        motorDriveLB.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        motorDriveRF.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        motorDriveRB.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-    }
-
+    /** Set power to ALL drivetrain motors. Uses setDrivePowerSides() for simplicity.
+     * @param motorPower the power given to each motor
+     * */
     public void setDrivePower(double motorPower) {
         setDrivePowerSides(motorPower, motorPower);
     }
 
+    /** Set power to the right and left drivetrain sides individually.
+     * Uses setDrivePowerMotors() for simplicity.
+     * @param motorPowerL the power given to the left side of the drivetrain
+     * @param motorPowerR the power given to the right side of the drivetrain
+     * */
     public void setDrivePowerSides(double motorPowerL, double motorPowerR) {
         setDrivePowerMotors(motorPowerL, motorPowerL, motorPowerR, motorPowerR);
     }
-
+    /** Set unique powers to each of the drivetrain motors.
+     * @param motorPowerLF the power given to the front-left drive motor
+     * @param motorPowerLB the power given to the back-left drive motor
+     * @param motorPowerRF the power given to the front-right drive motor
+     * @param motorPowerRB the power given to the back-right drive motor
+     * */
     public void setDrivePowerMotors(double motorPowerLF, double motorPowerLB, double motorPowerRF, double motorPowerRB) {
         motorDriveLF.setPower(motorPowerLF);
         motorDriveLB.setPower(motorPowerLB);
@@ -241,26 +229,38 @@ public class SteveBase {
         motorDriveRB.setPower(motorPowerRB);
     }
 
-    public boolean isFoundationGrabbed() {
+    /* =======================AUTONOMOUS EXCLUSIVE METHODS========================= */
+    /** Is the foundation pressing either of the touch sensors beside the grabbers?
+     * @return true for either being pressed or false for not pressed.
+     * */
+    public boolean isFoundationDetected() {
         // Since getState() returns false for pressed and true for not pressed, we had to apply some logic inverters to return results that make sense.
-        return (!foundationTouchL.getState() || !foundationTouchR.getState())
-                &&
-                servoFoundationL.getPosition() == 0 && servoFoundationR.getPosition() == 1;
+        return (!foundationTouchL.getState() || !foundationTouchR.getState());
     }
 
-    /* =======================AUTONOMOUS EXCLUSIVE METHODS========================= */
+    /** Simplifies the code without having to use ((LinearOpMode)opMode).sleep(ms) all the time
+     * @param ms how many milliseconds we want to pause for.
+     * */
     public void sleep(long ms) {
         if(((LinearOpMode)opMode).opModeIsActive()){
             ((LinearOpMode)opMode).sleep(ms);
         }
     }
 
+    /** Another simplification function, this one checks if the robot is initializing.
+     * @return whether or not we have pressed init on the driver station.
+     * */
     boolean isInitialized() {
         return !((LinearOpMode)opMode).isStarted() && !((LinearOpMode)opMode).isStopRequested();
     }
 
+    /** We use the driver’s gamepad controller to select autonomous options.
+     * The drive team can select the alliance color, parking preference, and whether to pull the
+     * foundation, deliver the Skystones, or neither. It then displays the results while we wait
+     * for the match to begin.*/
     public void selection() {
-        // What alliance color are we? (By the way, this is a do-while loop. It always runs at least once because of how it's set up)
+        // What alliance color are we? (By the way, that loop is a do-while loop. It's like a while
+        // loop, but it always runs at least once because of how it's set up)
         opMode.telemetry.addLine("Awaiting Autonomous Selection...");
         opMode.telemetry.addData("For blue alliance, press", "X");
         opMode.telemetry.addData("For red alliance, press", "B");
@@ -284,7 +284,7 @@ public class SteveBase {
             if(opMode.gamepad1.a) parkingPreference = "OUTSIDE";
         } while(!opMode.gamepad1.y && !opMode.gamepad1.a && isInitialized());
 
-        // Score SkyStones?
+        // Autonomous Strategy?
         opMode.telemetry.addLine("Awaiting Autonomous Selection...");
         opMode.telemetry.addData("To score the SkyStones, press:", "X");
         opMode.telemetry.addData("To move the foundation in auto, press", "B");
@@ -297,104 +297,21 @@ public class SteveBase {
             if(opMode.gamepad1.b) pushingFoundation = true;
         } while(!opMode.gamepad1.x && !opMode.gamepad1.b && !opMode.gamepad1.start && isInitialized());
 
+        // Display the results.
         opMode.telemetry.addData("All Set! Just press PLAY when ready!", "D");
         opMode.telemetry.addData("Current Alliance", allianceColor);
         opMode.telemetry.addData("Parking Preference", parkingPreference);
         opMode.telemetry.addData("Score SkyStone in Auto?", scoreSkyStones);
         opMode.telemetry.addData("Move Foundation in Auto?", pushingFoundation);
         opMode.telemetry.update();
-
-        if(scoreSkyStones) {
-            int cameraMonitorViewId = opMode.hardwareMap.appContext.getResources().getIdentifier("cameraMonitorViewId", "id", opMode.hardwareMap.appContext.getPackageName());
-            VuforiaLocalizer.Parameters parameters = new VuforiaLocalizer.Parameters(cameraMonitorViewId);
-            parameters.vuforiaLicenseKey = VUFORIA_KEY;
-            parameters.cameraDirection   = CAMERA_CHOICE;
-            //  Instantiate the Vuforia engine
-            vuforia = ClassFactory.getInstance().createVuforia(parameters);
-            // Load the data sets for the trackable objects.
-            targetsSkyStone = this.vuforia.loadTrackablesFromAsset("Skystone");
-            VuforiaTrackable stoneTarget = targetsSkyStone.get(0);
-            stoneTarget.setName("Stone Target");
-            allTrackables = new ArrayList<>();
-            allTrackables.addAll(targetsSkyStone);
-            /**
-             * If you are standing in the Red Alliance Station looking towards the center of the field,
-             *     - The X axis runs from your left to the right. (positive from the center to the right)
-             *     - The Y axis runs from the Red Alliance Station towards the other side of the field
-             *       where the Blue Alliance Station is. (Positive is from the center, towards the BlueAlliance station)
-             *     - The Z axis runs from the floor, upwards towards the ceiling.  (Positive is above the floor)
-             */
-            // Set the position of the Stone Target.  Assume it's at the field origin. Rotated it to face forward, and raised it to sit on the ground correctly.
-            stoneTarget.setLocation(OpenGLMatrix
-                    .translation(0, 0, stoneZ)
-                    .multiplied(Orientation.getRotationMatrix(AxesReference.EXTRINSIC, AxesOrder.XYZ, AngleUnit.DEGREES, 90, 0, -90)));
-            // Info:  The coordinate frame for the robot looks the same as the field.
-            // The robot's "forward" direction is facing out along X axis, with the LEFT side facing out along the Y axis.
-            // Z is UP on the robot.  This equates to a bearing angle of Zero degrees.
-            //
-            // The phone starts out lying flat, with the screen facing Up and with the physical top of the phone
-            // pointing to the LEFT side of the Robot.
-            // We need to rotate the camera around it's long axis to bring the correct camera forward.
-            if (CAMERA_CHOICE == VuforiaLocalizer.CameraDirection.BACK) {
-                phoneYRotate = -90;
-            } else {
-                phoneYRotate = 90;
-            }
-            // Rotate the phone vertical about the X axis if it's in portrait mode
-            if (PHONE_IS_PORTRAIT) {
-                phoneXRotate = 90 ;
-            }
-            // Next, translate the camera lens to where it is on the robot.
-            final float CAMERA_FORWARD_DISPLACEMENT  = 6f * mmPerInch;   //sets the phone at the exact front of the robot (code correction for x axis telemetry consistently being off by an inch)
-            final float CAMERA_VERTICAL_DISPLACEMENT = 5f * mmPerInch;   // Camera is 4 Inches above ground
-            final float CAMERA_LEFT_DISPLACEMENT     = 8f * mmPerInch;   // SIDE TO SIDE
-            OpenGLMatrix robotFromCamera = OpenGLMatrix
-                    .translation(CAMERA_FORWARD_DISPLACEMENT, CAMERA_LEFT_DISPLACEMENT, CAMERA_VERTICAL_DISPLACEMENT)
-                    .multiplied(Orientation.getRotationMatrix(AxesReference.EXTRINSIC, AxesOrder.YZX, AngleUnit.DEGREES, phoneYRotate, phoneZRotate, phoneXRotate));
-            /**  Let all the trackable listeners know where the phone is.  */
-            for (VuforiaTrackable trackable : allTrackables) {
-                ((VuforiaTrackableDefaultListener) trackable.getListener()).setPhoneInformation(robotFromCamera, parameters.cameraDirection);
-            }
-        }
     }
 
-    void lookForSkystones() {
-        targetsSkyStone.activate();
-        timerVuforia.reset();
-        //CameraDevice.getInstance().setFlashTorchMode(true); //turns on the flashlight. Commented out cuz turning on the flashlight wasn't helping
-        while (!((LinearOpMode)opMode).isStopRequested() && timerVuforia.seconds() <= 3) {
-            // check all the trackable targets to see which one (if any) is visible.
-            targetVisible = false;
-            for (VuforiaTrackable trackable : allTrackables) {
-                if (((VuforiaTrackableDefaultListener)trackable.getListener()).isVisible()) {
-                    opMode.telemetry.addData("Visible Target", trackable.getName());
-                    targetVisible = true;
-                    // getUpdatedRobotLocation() will return null if no new information is available since
-                    // the last time that call was made, or if the trackable is not currently visible.
-                    OpenGLMatrix robotLocationTransform = ((VuforiaTrackableDefaultListener)trackable.getListener()).getUpdatedRobotLocation();
-                    if (robotLocationTransform != null) {
-                        lastLocation = robotLocationTransform;
-                    }
-                    break;
-                }
-            }
-            // Provide feedback as to where the robot is located (if we know).
-            if (targetVisible) {
-                // express position (translation) of robot in inches.
-                VectorF translation = lastLocation.getTranslation();
-                opMode.telemetry.addData("X Pos", translation.get(0));
-                if(translation.get(1) / mmPerInch > 4) stonePosition = "RIGHT";
-                else if(translation.get(1) / mmPerInch < -4) stonePosition = "LEFT";
-                else stonePosition = "CENTER";
-                opMode.telemetry.update();
-                break;
-            }
-        targetsSkyStone.deactivate();
-        if(stonePosition.equals("")) stonePosition = "CENTER";
-        //CameraDevice.getInstance().setFlashTorchMode(false); //this turns off the flashlight. Commented out cuz I don't currently turn on the flashlight
-        }
-    }
-
+    /** Intakes the motors to be used by each of the encoders, and then updates robot position based
+     * on how much change has occured in the motor wheels and robot heading.
+     * @param encoderLeft usually uses motorDriveLB
+     * @param encoderRight usually uses motorDriveRB
+     * @param encoderStrafe usually uses motorDriveLF
+     * */
     public void updateOdometry(DcMotor encoderLeft, DcMotor encoderRight, DcMotor encoderStrafe) {
         // STEP 1: Calculate the Delta (change) of the ticks and robot heading since last update
         leftWheelTickDelta = -(encoderLeft.getCurrentPosition() - leftWheelTickDeltaPrevious);
@@ -424,50 +341,59 @@ public class SteveBase {
         // Position Update for the horizontal encoder wheel
         xPosition += horizontalDistance * Math.sin(Math.toRadians(robotHeading));
         yPosition -= horizontalDistance * Math.cos(Math.toRadians(robotHeading));
+
+        opMode.telemetry.addData("Robot Speed in Feet per Second", robotSpeedInFPS);
+        opMode.telemetry.update();
     }
 
-    void travelToPosition(double xTarget, double yTarget, double offsetHeading, double... powerMin) {
+    /** Tells the robot to travel to a certain position and heading on the field while constantly
+     * updating position and heading.
+     * @param xTarget the x-value of the target position relative to starting position in inches.
+     * @param yTarget the y-value of the target position relative to starting position in inches.
+     * @param lockedHeading what robot heading we want to end up at
+     * @param targetAccuracy how close we want to be to the target before we stop.
+     * @param powerBoost Optional parameter for cases when we need lots of pushing power
+     *                   (*stares at the foundation*)
+     * */
+    void travelToPosition(double xTarget, double yTarget, double lockedHeading, double targetAccuracy, double... powerBoost) {
         updateOdometry(motorDriveLB, motorDriveRB, motorDriveLF);
-        lockedHeading = robotHeading + offsetHeading;
-        double headingError = lockedHeading - robotHeading;
+        double offsetHeading = lockedHeading - robotHeading;
         double xDelta = -xTarget + xPosition;
         double yDelta = yTarget - yPosition;
-        while(((Math.abs(xDelta) > TARGET_POSITION_ACCURACY_IN_INCHES ||
-              Math.abs(yDelta) > TARGET_POSITION_ACCURACY_IN_INCHES) &&
-              ((LinearOpMode)opMode).opModeIsActive())) {
+
+        while(((Math.abs(xDelta) > targetAccuracy ||
+                Math.abs(yDelta) > targetAccuracy) ||
+                (Math.abs(offsetHeading) > TARGET_HEADING_ACCURACY_IN_DEGREES) &&
+                        ((LinearOpMode)opMode).opModeIsActive())) {
             updateOdometry(motorDriveLB, motorDriveRB, motorDriveLF);
             xDelta = -xTarget + xPosition;
             yDelta = yTarget - yPosition;
-            headingError = lockedHeading - robotHeading;
-            // If the robot tries to turn to a heading that is right at the turnaround from -180 to
-            // 180, it will keep spinning if it goes just barely over. That's why the turnaround has
-            // been shifted to such strange values - it's very unlikely that we would need to turn
-            // to such headings.
-            headingError += headingError > 160 ? -360 :
-                            headingError < -200 ? 360 : 0;
+            offsetHeading = lockedHeading - robotHeading;
+            offsetHeading += offsetHeading > 120 ? -360 :
+                    offsetHeading < -240 ? 360 : 0;
 
             double desiredSpeedLF = 0;
             double desiredSpeedLB = 0;
             double desiredSpeedRF = 0;
             double desiredSpeedRB = 0;
 
-            if(Math.abs(xDelta) > TARGET_POSITION_ACCURACY_IN_INCHES ||
-               Math.abs(yDelta) > TARGET_POSITION_ACCURACY_IN_INCHES) {
+            if(Math.abs(xDelta) > targetAccuracy ||
+                    Math.abs(yDelta) > targetAccuracy) {
                 // Determines wheel power for each motor based on our base motor power and target X, Y, and Theta values
                 double angleDirection = Math.atan2(yDelta, xDelta) + Math.toRadians(robotHeading) - Math.toRadians(initialHeading);
-                double drivingPower = 0.55;
+                double powerMod = powerBoost.length > 0 ? powerBoost[0] : 0; // For when we need heavy duty pushing power
+                double powerCurve = Math.sqrt(Math.abs(Math.hypot(xDelta, yDelta))/80);
+                double drivingPower = Range.clip(powerCurve + 0.1 + powerMod, 0, 0.55);
                 double wheelTrajectory = angleDirection - (Math.PI/4);
-                double powerMod = Math.abs(Math.hypot(xDelta, yDelta)) > 5 ? 1 :
-                                  powerMin.length == 1 ? powerMin[0] : 0.45;
 
-                desiredSpeedLF -= (drivingPower * (Math.cos(wheelTrajectory))) * Math.sqrt(2) * powerMod;
-                desiredSpeedLB -= (drivingPower * (Math.sin(wheelTrajectory))) * Math.sqrt(2) * powerMod;
-                desiredSpeedRF += (drivingPower * (Math.sin(wheelTrajectory))) * Math.sqrt(2) * powerMod;
-                desiredSpeedRB += (drivingPower * (Math.cos(wheelTrajectory))) * Math.sqrt(2) * powerMod;
+                desiredSpeedLF -= (drivingPower * (Math.cos(wheelTrajectory))) * Math.sqrt(2);
+                desiredSpeedLB -= (drivingPower * (Math.sin(wheelTrajectory))) * Math.sqrt(2);
+                desiredSpeedRF += (drivingPower * (Math.sin(wheelTrajectory))) * Math.sqrt(2);
+                desiredSpeedRB += (drivingPower * (Math.cos(wheelTrajectory))) * Math.sqrt(2);
             }
             // Correct for robot drifting
-            if(Math.abs(headingError) > TARGET_HEADING_ACCURACY_IN_DEGREES) {
-                double turnMod = Range.clip(Math.toRadians(headingError * 1.5), -0.5, 0.5);
+            if(Math.abs(offsetHeading) > TARGET_HEADING_ACCURACY_IN_DEGREES) {
+                double turnMod = Range.clip(Math.toRadians(offsetHeading * 1.5), -0.5, 0.5);
                 desiredSpeedLF = Range.clip(desiredSpeedLF - turnMod, -1, 1);
                 desiredSpeedLB = Range.clip(desiredSpeedLB - turnMod, -1, 1);
                 desiredSpeedRF = Range.clip(desiredSpeedRF - turnMod, -1, 1);
@@ -475,85 +401,49 @@ public class SteveBase {
             }
 
             setDrivePowerMotors(desiredSpeedLF, desiredSpeedLB, desiredSpeedRF, desiredSpeedRB);
-
-            opMode.telemetry.addData("heading", robotHeading);
-            opMode.telemetry.addData("headingError", headingError);
-            opMode.telemetry.addData("xDelta", xDelta);
-            opMode.telemetry.addData("yDelta", yDelta);
-            opMode.telemetry.addData("xTarget", xTarget);
-            opMode.telemetry.addData("yTarget", yTarget);
-            opMode.telemetry.update();
         }
         setDrivePower(0);
-        imuTurn(headingError);
-    }
-
-    /** Just an angle converter to use in case we ever need to turn to an absolute heading, instead
-     * of a heading relative to the robot.*/
-    public double absoluteHeading(double target) {
-        target += 180;
-        target += target > 360 ? -360 :
-                target <   0 ?  360 : 0;
-        angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES);
-        double currentHeading = angles.firstAngle + 180;
-        double degreesToTurn = target - currentHeading;
-        degreesToTurn += degreesToTurn > 180 ? -360 :
-                         degreesToTurn < -180 ? 360 : 0;
-        return degreesToTurn;
+        imuTurn(offsetHeading);
     }
 
     /** The IMU Turn we used last year. Not as complicated as the encoder drive, yet more
-     * complicated at the same time. Enjoy.*/
+     * complicated at the same time. Enjoy.
+     * @param degreesToTurn how many degrees we want to turn. And no, I'm not a radian guy.
+     * */
     private void imuTurn(double degreesToTurn) {
         updateOdometry(motorDriveLB, motorDriveRB, motorDriveLF);
         double currentHeading = angles.firstAngle + 180;
         double targetHeading = degreesToTurn + currentHeading;
         targetHeading += targetHeading > 360 ? -360 :
-                         targetHeading < 0 ? 360 : 0;
+                targetHeading < 0 ? 360 : 0;
 
         timerTravel.reset();
-        while (Math.abs(degreesToTurn) > 2 && ((LinearOpMode)opMode).opModeIsActive() && timerTravel.seconds() <= 2) {
+        while (Math.abs(degreesToTurn) > 5 && ((LinearOpMode)opMode).opModeIsActive() && timerTravel.seconds() <= 2) {
             updateOdometry(motorDriveLB, motorDriveRB, motorDriveLF);
             currentHeading = angles.firstAngle + 180;
             degreesToTurn = targetHeading - currentHeading;
 
-            /*double POWER_CAP = 45;      // Once we hit this power, we should slow down.
-            double DEGREES_TO_POWER = Range.clip(Math.pow(degreesToTurn / POWER_CAP, 1/3), -1, 1);
-            double TURN_POWER = DEGREES_TO_POWER * .7;*/
-            double TURN_POWER = Range.clip(Math.signum(degreesToTurn) * (0.2 + (Math.abs(degreesToTurn) / 270)), -1, 1);
+            double TURN_POWER = Range.clip(Math.signum(degreesToTurn) * (0.2 + (Math.abs(degreesToTurn) / 270)), -0.35, 0.35);
             setDrivePowerSides(-TURN_POWER, -TURN_POWER);
-
-            opMode.telemetry.addData("DegreesToTurn", degreesToTurn);
-            opMode.telemetry.addData("Target", targetHeading);
-            opMode.telemetry.addData("Current", currentHeading);
-            opMode.telemetry.addData("position LF", motorDriveLF.getCurrentPosition());
-            opMode.telemetry.addData("position LB", motorDriveLB.getCurrentPosition());
-            opMode.telemetry.addData("position RF", motorDriveRF.getCurrentPosition());
-            opMode.telemetry.addData("position RB", motorDriveRB.getCurrentPosition());
-            opMode.telemetry.update();
         }
-
-        opMode.telemetry.addData("DegreesToTurn", degreesToTurn);
-        opMode.telemetry.addData("Target", targetHeading);
-        opMode.telemetry.addData("Current", currentHeading);
-        opMode.telemetry.addData("position LF", motorDriveLF.getCurrentPosition());
-        opMode.telemetry.addData("position LB", motorDriveLB.getCurrentPosition());
-        opMode.telemetry.addData("position RF", motorDriveRF.getCurrentPosition());
-        opMode.telemetry.addData("position RB", motorDriveRB.getCurrentPosition());
-        opMode.telemetry.update();
         setDrivePower(0);
-        sleep(100);
+        sleep(200);
     }
 
+    /** Called in the OpMode to grab the foundation, readying the robot to score it.
+     * Behaves differently based on autonomous path.
+     * */
     public void grabFoundation() {
         if(allianceColor.equals("RED")) {
-            travelToPosition(13, 26, 0);
-            travelToPosition(13, 31, 0);
-            while(((LinearOpMode)opMode).opModeIsActive() && attemptsToGrabFoundation < 5) {
+            travelToPosition(13, 26, 0, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+            travelToPosition(13, 31, 0, TARGET_POSITION_ACCURACY_IN_INCHES);
+            while(((LinearOpMode)opMode).opModeIsActive() && attemptsToGrabFoundation < 6 && timerOpMode.seconds() < 29) {
                 servoFoundationL.setPosition(0);
                 servoFoundationR.setPosition(1);
+                attemptsToGrabFoundation++;
                 sleep(1000);
-                if(isFoundationGrabbed()) {
+                travelToPosition(13, 31 + (attemptsToGrabFoundation * 2), 0, TARGET_POSITION_ACCURACY_IN_INCHES);
+                if(isFoundationDetected()) {
                     break;
                 }
                 else if(((LinearOpMode)opMode).opModeIsActive()){
@@ -561,21 +451,24 @@ public class SteveBase {
                     servoFoundationR.setPosition(0);
                     sleep(600);
                     attemptsToGrabFoundation++;
-                    travelToPosition(13, 31 + (attemptsToGrabFoundation * 1.5), 0);
+                    travelToPosition(13, 31 + (attemptsToGrabFoundation * 2), 0, TARGET_POSITION_ACCURACY_IN_INCHES);
                 }
             }
             servoFoundationL.setPosition(0);
             servoFoundationR.setPosition(1);
             sleep(800);
-            travelToPosition(15, yPosition, 0);
+            travelToPosition(15, yPosition, 0, TARGET_POSITION_ACCURACY_IN_INCHES);
+            travelToPosition(15, 31, 0, TARGET_POSITION_ACCURACY_IN_INCHES);
         } else if(allianceColor.equals("BLUE")) {
-            travelToPosition(-13, 26, 0);
-            travelToPosition(-13, 31, 0);
-            while(((LinearOpMode)opMode).opModeIsActive() && attemptsToGrabFoundation < 5) {
+            travelToPosition(-13, 26, 0, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+            travelToPosition(-13, 31, 0, TARGET_POSITION_ACCURACY_IN_INCHES);
+            while(((LinearOpMode)opMode).opModeIsActive() && attemptsToGrabFoundation < 6 && timerOpMode.seconds() < 29) {
                 servoFoundationL.setPosition(0);
                 servoFoundationR.setPosition(1);
                 sleep(1000);
-                if(isFoundationGrabbed()) {
+                attemptsToGrabFoundation++;
+                travelToPosition(-13, 31 + (attemptsToGrabFoundation * 2), 0, TARGET_POSITION_ACCURACY_IN_INCHES);
+                if(isFoundationDetected()) {
                     break;
                 }
                 else if(((LinearOpMode)opMode).opModeIsActive()){
@@ -583,277 +476,329 @@ public class SteveBase {
                     servoFoundationR.setPosition(0);
                     sleep(600);
                     attemptsToGrabFoundation++;
-                    travelToPosition(-13, 31 + (attemptsToGrabFoundation * 1.5), 0);
+                    travelToPosition(-13, 31 + (attemptsToGrabFoundation * 2), 0, TARGET_POSITION_ACCURACY_IN_INCHES);
                 }
             }
             servoFoundationL.setPosition(0);
             servoFoundationR.setPosition(1);
             sleep(800);
-            travelToPosition(-15, yPosition, 0);
+            travelToPosition(-15, yPosition, 0, TARGET_POSITION_ACCURACY_IN_INCHES);
+            travelToPosition(-15, 31, 0, TARGET_POSITION_ACCURACY_IN_INCHES);
         }
     }
 
+    /** Called in the OpMode to pull the foundation in a curving motion, and pushing it.
+     * Behaves differently based on autonomous path.
+     * */
     public void turnAndScoreFoundation(){
         angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES);
         if(allianceColor.equals("RED")){
-            while (angles.firstAngle > -85 && ((LinearOpMode)opMode).opModeIsActive()){
+            while (angles.firstAngle > -85 && ((LinearOpMode)opMode).opModeIsActive() && timerOpMode.seconds() < 29){
                 updateOdometry(motorDriveLB, motorDriveRB, motorDriveLF);
-                setDrivePowerSides(1, -0.4);
+                setDrivePowerSides(1, -0.3);
             }
-            travelToPosition(3, yPosition, 0, 0.4);
+            travelToPosition(3, 5, 0, TARGET_POSITION_ACCURACY_IN_INCHES, 0.1);
         } else if(allianceColor.equals("BLUE")){
-            while (angles.firstAngle < 85 && ((LinearOpMode)opMode).opModeIsActive()){
+            while (angles.firstAngle < 85 && ((LinearOpMode)opMode).opModeIsActive() && timerOpMode.seconds() < 29){
                 updateOdometry(motorDriveLB, motorDriveRB, motorDriveLF);
-                setDrivePowerSides(0.4, -1);
+                setDrivePowerSides(0.3, -1);
             }
-            travelToPosition(-4, yPosition, 0, 0.4);
+            travelToPosition(-4, 5, 0, TARGET_POSITION_ACCURACY_IN_INCHES, 0.1);
         }
         servoFoundationL.setPosition(1);
         servoFoundationR.setPosition(0);
         sleep(600);
     }
 
-    public void collectAndScoreSkystones(){
+    /** Called in the OpMode to drive up to the stones in the loading zone and identify which one is
+     * the SkyStone.
+     * Behaves differently based on autonomous path.
+     * */
+    void lookForSkystones() {
         if(allianceColor.equals("RED")) {
-            travelToPosition(12, 3, 0);
-            lookForSkystones();
-            if(stonePosition.equals("LEFT")) {
-                double stonePosX = 39.5;
-                double stonePosY = -4;
-                double skybridgePassingX = parkingPreference.equals("INSIDE") ? 26.5 : 5;
-
-                travelToPosition(xPosition, stonePosY, -180);
-                travelToPosition(stonePosX, stonePosY, 0);
-                motorCollectionL.setPower(1);
-                motorCollectionR.setPower(-1);
-                travelToPosition(stonePosX, stonePosY + 4, 0);
-                sleep(200);
-                motorCollectionL.setPower(0);
-                motorCollectionR.setPower(0);
-                travelToPosition(skybridgePassingX, -16, 180);
-                travelToPosition(skybridgePassingX, -51 ,0);
-                motorCollectionL.setPower(-0.5);
-                motorCollectionR.setPower(0.5);
-                travelToPosition(skybridgePassingX, -16, 0);
-                travelToPosition(stonePosX - 12, stonePosY + 24, -180);
-                travelToPosition(stonePosX, stonePosY + 24, 0);
-                motorCollectionL.setPower(1);
-                motorCollectionR.setPower(-1);
-                travelToPosition(stonePosX, stonePosY + 28, 0);
-                sleep(200);
-                motorCollectionL.setPower(0);
-                motorCollectionR.setPower(0);
-                travelToPosition(skybridgePassingX, -16, 180);
-                travelToPosition(skybridgePassingX, -51 ,0);
-                motorCollectionL.setPower(-0.5);
-                motorCollectionR.setPower(0.5);
-            } else if(stonePosition.equals("CENTER")) {
-                double stonePosX = 39.5;
-                double stonePosY = -12;
-                double skybridgePassingX = parkingPreference.equals("INSIDE") ? 26.5 : 5;
-
-                travelToPosition(xPosition, stonePosY, -180);
-                travelToPosition(stonePosX, stonePosY, 0);
-                motorCollectionL.setPower(1);
-                motorCollectionR.setPower(-1);
-                travelToPosition(stonePosX, stonePosY + 4, 0);
-                sleep(200);
-                motorCollectionL.setPower(0);
-                motorCollectionR.setPower(0);
-                travelToPosition(skybridgePassingX, -16, 180);
-                travelToPosition(skybridgePassingX, -51 ,0);
-                motorCollectionL.setPower(-0.5);
-                motorCollectionR.setPower(0.5);
-                travelToPosition(skybridgePassingX, -16, 0);
-                travelToPosition(stonePosX - 12, stonePosY + 24, -180);
-                travelToPosition(stonePosX, stonePosY + 24, 0);
-                motorCollectionL.setPower(1);
-                motorCollectionR.setPower(-1);
-                travelToPosition(stonePosX, stonePosY + 28, 0);
-                sleep(200);
-                motorCollectionL.setPower(0);
-                motorCollectionR.setPower(0);
-                travelToPosition(skybridgePassingX, -16, 180);
-                travelToPosition(skybridgePassingX, -51 ,0);
-                motorCollectionL.setPower(-0.5);
-                motorCollectionR.setPower(0.5);
-            } else if(stonePosition.equals("RIGHT")) {
-                double stonePosX = 31.5;
-                double stonePosY = -16;
-                double skybridgePassingX = parkingPreference.equals("INSIDE") ? 26.5 : 5;
-
-                travelToPosition(xPosition, stonePosY, -225);
-                travelToPosition(stonePosX, stonePosY, 0);
-                motorCollectionL.setPower(1);
-                motorCollectionR.setPower(-1);
-                travelToPosition(stonePosX + 6, stonePosY + 6, 0);
-                sleep(200);
-                motorCollectionL.setPower(0);
-                motorCollectionR.setPower(0);
-                travelToPosition(skybridgePassingX, -16, 225);
-                travelToPosition(skybridgePassingX, -51, 0);
-                motorCollectionL.setPower(-0.5);
-                motorCollectionR.setPower(0.5);
-                travelToPosition(skybridgePassingX, -16, 0);
-                travelToPosition(stonePosX - 12, stonePosY + 24, -225);
-                travelToPosition(stonePosX, stonePosY + 24, 0);
-                motorCollectionL.setPower(1);
-                motorCollectionR.setPower(-1);
-                travelToPosition(stonePosX + 6, stonePosY + 30, 0);
-                sleep(200);
-                motorCollectionL.setPower(0);
-                motorCollectionR.setPower(0);
-                travelToPosition(skybridgePassingX, -16, 225);
-                travelToPosition(skybridgePassingX, -51, 0);
-                motorCollectionL.setPower(-0.5);
-                motorCollectionR.setPower(0.5);
+            for(int position = 0; position < 2; position++) { // Going from left to right
+                travelToPosition(-28, -3 + (8 * position), 90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                opMode.telemetry.addData("Alpha", sensorSkystones.alpha());
+                opMode.telemetry.update();
+                if(sensorSkystones.alpha() < SKYSTONE_DETECTION_THRESHHOLD) {
+                    skystonePosition = skystonePositions[position];
+                    return;
+                }
             }
+            // If Skystone isn't found, we can assume it's the right stone because we haven't checked it yet.
+            skystonePosition = "RIGHT";
         } else if(allianceColor.equals("BLUE")) {
-            travelToPosition(10, 0, 0);
-            lookForSkystones();
-            if (stonePosition.equals("LEFT")) {
-                double stonePosX = 39.5;
-                double stonePosY = 0;
-                double skybridgePassingX = parkingPreference.equals("INSIDE") ? 26.5 : 5;
+            for(int position = 0; position < 2; position++) { // Going from right to left
+                travelToPosition(-28, 8 * position, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                if(sensorSkystones.alpha() < SKYSTONE_DETECTION_THRESHHOLD) {
+                    skystonePosition = skystonePositions[position];
+                    return;
+                }
+            }
+            // If Skystone isn't found, just grab the right stone because it's the easiest to intake.
+            skystonePosition = "RIGHT";
+        }
+    }
 
-                travelToPosition(stonePosX, stonePosY, 0);
-                motorCollectionL.setPower(1);
-                motorCollectionR.setPower(-1);
-                travelToPosition(stonePosX, stonePosY - 4, 0);
-                sleep(200);
-                motorCollectionL.setPower(0);
-                motorCollectionR.setPower(0);
-                travelToPosition(skybridgePassingX, 10, -180);
-                travelToPosition(skybridgePassingX, 45, 0);
-                motorCollectionL.setPower(-0.5);
-                motorCollectionR.setPower(0.5);
-                travelToPosition(skybridgePassingX, 10, 0);
-                travelToPosition(stonePosX - 10, stonePosY - 24, 180);
-                travelToPosition(stonePosX, stonePosY - 24, 0);
-                motorCollectionL.setPower(1);
-                motorCollectionR.setPower(-1);
-                travelToPosition(stonePosX, stonePosY - 28, 0);
-                sleep(200);
-                motorCollectionL.setPower(0);
-                motorCollectionR.setPower(0);
-                travelToPosition(skybridgePassingX, 10, -180);
-                travelToPosition(skybridgePassingX, 45, 0);
-                motorCollectionL.setPower(-0.5);
-                motorCollectionR.setPower(0.5);
-            } else if (stonePosition.equals("CENTER")) {
-                double stonePosX = 39.5;
-                double stonePosY = 8;
-                double skybridgePassingX = parkingPreference.equals("INSIDE") ? 26.5 : 5;
+    /** Called in the OpMode to intake each of the two skystones and spit them out into the
+     * building zone individually.
+     * Behaves differently based on autonomous path.
+     * */
+    public void collectAndScoreSkystones(){
+        lookForSkystones();
+        if(allianceColor.equals("RED")) {
+            if(skystonePosition.equals("LEFT")) {
+                double stonePosX = -39;
+                double stonePosY = 11;
+                double skybridgePassingX = parkingPreference.equals("INSIDE") ? -26.5 : -5;
 
-                travelToPosition(xPosition, stonePosY, 0);
-                travelToPosition(stonePosX, stonePosY, 0);
+                travelToPosition(xPosition, stonePosY, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(stonePosX, stonePosY, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
                 motorCollectionL.setPower(1);
                 motorCollectionR.setPower(-1);
-                travelToPosition(stonePosX, stonePosY - 4, 0);
+                travelToPosition(stonePosX, stonePosY - 4, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
                 sleep(200);
                 motorCollectionL.setPower(0);
                 motorCollectionR.setPower(0);
-                travelToPosition(skybridgePassingX, 10, -180);
-                travelToPosition(skybridgePassingX, 45, 0);
+                travelToPosition(skybridgePassingX, 16, -90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(skybridgePassingX, 53 ,-90, TARGET_POSITION_ACCURACY_IN_INCHES);
                 motorCollectionL.setPower(-0.5);
                 motorCollectionR.setPower(0.5);
-                travelToPosition(skybridgePassingX, 10, 0);
-                travelToPosition(stonePosX - 10, stonePosY - 24, 180);
-                travelToPosition(stonePosX, stonePosY - 24, 0);
+                travelToPosition(skybridgePassingX, 16, -90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(stonePosX + 15, stonePosY - 24, 90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(stonePosX, stonePosY - 24, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
                 motorCollectionL.setPower(1);
                 motorCollectionR.setPower(-1);
-                travelToPosition(stonePosX, stonePosY - 28, 0);
+                travelToPosition(stonePosX, stonePosY - 28, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
                 sleep(200);
                 motorCollectionL.setPower(0);
                 motorCollectionR.setPower(0);
-                travelToPosition(skybridgePassingX, 10, -180);
-                travelToPosition(skybridgePassingX, 45, 0);
+                travelToPosition(skybridgePassingX, 16, -90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(skybridgePassingX, 53, -90, TARGET_POSITION_ACCURACY_IN_INCHES);
                 motorCollectionL.setPower(-0.5);
                 motorCollectionR.setPower(0.5);
-            } else if (stonePosition.equals("RIGHT")) {
-                double stonePosX = 31.5;
-                double stonePosY = 12;
-                double skybridgePassingX = parkingPreference.equals("INSIDE") ? 26.5 : 5;
+            } else if(skystonePosition.equals("CENTER")) {
+                double stonePosX = -39;
+                double stonePosY = 19;
+                double skybridgePassingX = parkingPreference.equals("INSIDE") ? -26.5 : -5;
 
-                travelToPosition(xPosition, stonePosY, 0);
-                travelToPosition(stonePosX, stonePosY, 45);
+                travelToPosition(xPosition, stonePosY, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(stonePosX, stonePosY, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
                 motorCollectionL.setPower(1);
                 motorCollectionR.setPower(-1);
-                travelToPosition(stonePosX + 4, stonePosY - 4, 0);
+                travelToPosition(stonePosX, stonePosY - 4, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
                 sleep(200);
                 motorCollectionL.setPower(0);
                 motorCollectionR.setPower(0);
-                travelToPosition(skybridgePassingX, 10, -225);
-                travelToPosition(skybridgePassingX, 45, 0);
+                travelToPosition(skybridgePassingX, 16, -90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(skybridgePassingX, 53, -90, TARGET_POSITION_ACCURACY_IN_INCHES);
                 motorCollectionL.setPower(-0.5);
                 motorCollectionR.setPower(0.5);
-                travelToPosition(skybridgePassingX, 10, 0);
-                travelToPosition(stonePosX, stonePosY - 24, 225);
+                travelToPosition(skybridgePassingX, 16, -90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(stonePosX + 15, stonePosY - 24, 90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(stonePosX, stonePosY - 24, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
                 motorCollectionL.setPower(1);
                 motorCollectionR.setPower(-1);
-                travelToPosition(stonePosX + 4, stonePosY - 28, 0);
+                travelToPosition(stonePosX, stonePosY - 28, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
                 sleep(200);
                 motorCollectionL.setPower(0);
                 motorCollectionR.setPower(0);
-                travelToPosition(skybridgePassingX, 10, -225);
-                travelToPosition(skybridgePassingX, 45, 0);
+                travelToPosition(skybridgePassingX, 16, -90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(skybridgePassingX, 53 ,-90, TARGET_POSITION_ACCURACY_IN_INCHES);
                 motorCollectionL.setPower(-0.5);
                 motorCollectionR.setPower(0.5);
+            } else if(skystonePosition.equals("RIGHT")) {
+                double stonePosX = -38.5;
+                double stonePosY = 27;
+                double skybridgePassingX = parkingPreference.equals("INSIDE") ? -26.5 : -5;
+
+                travelToPosition(xPosition + 1, stonePosY-4, 45, TARGET_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(stonePosX + 5, stonePosY-4, 45, TARGET_POSITION_ACCURACY_IN_INCHES);
+                motorCollectionL.setPower(1);
+                motorCollectionR.setPower(-1);
+                travelToPosition(stonePosX - 1, stonePosY - 10, 55, TARGET_POSITION_ACCURACY_IN_INCHES);
+                sleep(200);
+                motorCollectionL.setPower(0);
+                motorCollectionR.setPower(0);
+                travelToPosition(skybridgePassingX, 16, -90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(skybridgePassingX, 53, -90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                motorCollectionL.setPower(-0.5);
+                motorCollectionR.setPower(0.5);
+                travelToPosition(skybridgePassingX, 16, -90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(stonePosX + 15, stonePosY - 24, 90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(stonePosX, stonePosY - 24, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                motorCollectionL.setPower(1);
+                motorCollectionR.setPower(-1);
+                travelToPosition(stonePosX, stonePosY - 29, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                sleep(200);
+                motorCollectionL.setPower(0);
+                motorCollectionR.setPower(0);
+                travelToPosition(skybridgePassingX, 16, -90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(skybridgePassingX, 53, -90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                motorCollectionL.setPower(-0.5);
+                motorCollectionR.setPower(0.5);
+            }
+            // BLUE SIDE
+        } else if(allianceColor.equals("BLUE")) {
+            if (skystonePosition.equals("LEFT")) {
+                double stonePosX = -43;
+                double stonePosY = -13;
+                double skybridgePassingX = parkingPreference.equals("INSIDE") ? -26.5 : -5;
+                travelToPosition(stonePosX + 4, yPosition, 90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(stonePosX + 4, stonePosY + 6, -45, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(stonePosX + 2, yPosition, -45, TARGET_POSITION_ACCURACY_IN_INCHES);
+                motorCollectionL.setPower(1);
+                motorCollectionR.setPower(-1);
+                travelToPosition(stonePosX, stonePosY + 8, -45, TARGET_POSITION_ACCURACY_IN_INCHES);
+                sleep(200);
+                motorCollectionL.setPower(0);
+                motorCollectionR.setPower(0);
+                travelToPosition(skybridgePassingX, -10, 90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(skybridgePassingX, -40, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                motorCollectionL.setPower(-0.35);
+                motorCollectionR.setPower(0.35);
+                travelToPosition(skybridgePassingX, -10, 90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(stonePosX + 15, stonePosY + 24, -90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(stonePosX, stonePosY + 24, -90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                motorCollectionL.setPower(1);
+                motorCollectionR.setPower(-1);
+                travelToPosition(stonePosX, stonePosY + 28, -90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                sleep(200);
+                motorCollectionL.setPower(0);
+                motorCollectionR.setPower(0);
+                travelToPosition(skybridgePassingX, -10, 90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(skybridgePassingX, -40, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                motorCollectionL.setPower(-0.35);
+                motorCollectionR.setPower(0.35);
+            } else if (skystonePosition.equals("CENTER")) {
+                double stonePosX = -44;
+                double stonePosY = -5;
+                double skybridgePassingX = parkingPreference.equals("INSIDE") ? -26.5 : -5;
+                travelToPosition(xPosition + 3, yPosition, 90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(xPosition + 3, stonePosY, -90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(stonePosX, stonePosY, -90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                motorCollectionL.setPower(1);
+                motorCollectionR.setPower(-1);
+                travelToPosition(stonePosX, stonePosY + 4, -90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                sleep(200);
+                motorCollectionL.setPower(0);
+                motorCollectionR.setPower(0);
+                travelToPosition(skybridgePassingX, -10, 90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(skybridgePassingX, -40, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                motorCollectionL.setPower(-0.35);
+                motorCollectionR.setPower(0.35);
+                travelToPosition(skybridgePassingX, -10, 90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(stonePosX + 15, stonePosY + 24, -90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(stonePosX, stonePosY + 24, -90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                motorCollectionL.setPower(1);
+                motorCollectionR.setPower(-1);
+                travelToPosition(stonePosX, stonePosY + 29, -90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                sleep(200);
+                motorCollectionL.setPower(0);
+                motorCollectionR.setPower(0);
+                travelToPosition(skybridgePassingX, -10, 90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(skybridgePassingX, -40, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                motorCollectionL.setPower(-0.35);
+                motorCollectionR.setPower(0.35);
+            } else if (skystonePosition.equals("RIGHT")) {
+                double stonePosX = -43;
+                double stonePosY = 4;
+                double skybridgePassingX = parkingPreference.equals("INSIDE") ? -26.5 : -5;
+
+                travelToPosition(stonePosX + 15, stonePosY, -90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(stonePosX, stonePosY, -90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                motorCollectionL.setPower(1);
+                motorCollectionR.setPower(-1);
+                travelToPosition(stonePosX, stonePosY + 4, -90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                sleep(200);
+                motorCollectionL.setPower(0);
+                motorCollectionR.setPower(0);
+                travelToPosition(skybridgePassingX, -10, 90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(skybridgePassingX, -40, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                motorCollectionL.setPower(-0.35);
+                motorCollectionR.setPower(0.35);
+                travelToPosition(skybridgePassingX, -10, 90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(stonePosX + 15, stonePosY + 24, -90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(stonePosX, stonePosY + 24, -90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                motorCollectionL.setPower(1);
+                motorCollectionR.setPower(-1);
+                travelToPosition(stonePosX + 4, stonePosY + 29, -90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                sleep(200);
+                motorCollectionL.setPower(0);
+                motorCollectionR.setPower(0);
+                travelToPosition(skybridgePassingX, -10, 90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                travelToPosition(skybridgePassingX, -40, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                motorCollectionL.setPower(-0.35);
+                motorCollectionR.setPower(0.35);
             }
         }
     }
 
+    /** Called in the OpMode to park under the Skybridge at the end of autonomous.
+     * Behaves differently based on autonomous path.
+     * */
     public void driveToSkybridge() {
-        if(scoreSkyStones) {
-            if (allianceColor.equals("RED")) {
-                if (parkingPreference.equals("INSIDE")) {
-                    travelToPosition(26.5, -35, 0);
-                } else if (parkingPreference.equals("OUTSIDE")) {
-                    travelToPosition(5, -35, 0);
+        if(timerOpMode.seconds() < 29) {
+            if(scoreSkyStones) {
+                if (allianceColor.equals("RED")) {
+                    if (parkingPreference.equals("INSIDE")) {
+                        travelToPosition(-26.5, 45, -90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                    } else if (parkingPreference.equals("OUTSIDE")) {
+                        travelToPosition(-5, 45, -90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                    }
+                } else if (allianceColor.equals("BLUE")) {
+                    if (parkingPreference.equals("INSIDE")) {
+                        travelToPosition(-26.5, -30, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                    } else if (parkingPreference.equals("OUTSIDE")) {
+                        travelToPosition(-5, -30, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                    }
                 }
-            } else if (allianceColor.equals("BLUE")) {
-                if (parkingPreference.equals("INSIDE")) {
-                    travelToPosition(30, 35, 0);
-                } else if (parkingPreference.equals("OUTSIDE")) {
-                    travelToPosition(5, 35, 0);
-                }
-            }
-        } else {
-            if (allianceColor.equals("RED")) {
-                if (parkingPreference.equals("INSIDE")) {
-                    travelToPosition(-20, 31, 0);
-                    travelToPosition(-40, 31, 0);
-                } else if (parkingPreference.equals("OUTSIDE")) {
-                    travelToPosition(-40, 6, 0);
-                }
-            } else if (allianceColor.equals("BLUE")) {
-                if (parkingPreference.equals("INSIDE")) {
-                    travelToPosition(20, 31, 0);
-                    travelToPosition(40, 31, 0);
-                } else if (parkingPreference.equals("OUTSIDE")) {
-                    travelToPosition(40, 5, 0);
+            } else {
+                if (allianceColor.equals("RED")) {
+                    if (parkingPreference.equals("INSIDE")) {
+                        travelToPosition(-20, 43, -90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                        travelToPosition(-40, 43, -90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                    } else if (parkingPreference.equals("OUTSIDE")) {
+                        travelToPosition(-40, 6, -90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                    }
+                } else if (allianceColor.equals("BLUE")) {
+                    if (parkingPreference.equals("INSIDE")) {
+                        travelToPosition(18, 43, 90, WAYPOINT_POSITION_ACCURACY_IN_INCHES);
+                        travelToPosition(35, 43, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                    } else if (parkingPreference.equals("OUTSIDE")) {
+                        travelToPosition(35, 5, 90, TARGET_POSITION_ACCURACY_IN_INCHES);
+                    }
                 }
             }
         }
-
     }
 
+    /** Wait for the end of autonomous to store our heading.*/
     public void waitForEnd(){
-        while (timerOpMode.seconds() <29){
+        while (timerOpMode.seconds() <29){ // Yes. It is, in fact, an empty loop.
         }
     }
 
+    /** At the end of the autonomous period, the robot stores the heading of the robot in a file
+     * setting. The robot will retrieve this heading at the start of autonomous to be used in the
+     * field-centric driver controls. */
     public void storeHeading(){
         angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.RADIANS);
-        ReadWriteFile.writeFile(headingFile, String.valueOf(angles.firstAngle));
+        ReadWriteFile.writeFile(headingFile, String.valueOf(-angles.firstAngle));
         opMode.telemetry.addData("headingFile", "" + ReadWriteFile.readFile(headingFile)); //Store robot heading to phone
         opMode.telemetry.update();
     }
 
     /* =======================TELEOP METHODS========================= */
+
+    /** At the start of the program, the robot retrieves the robot’s heading stored in a file
+     * setting on the phone during Autonomous. This is used in our Field-Centric Drive Control
+     * of the robot.*/
     public void retrieveHeading() {
         try {
             STARTING_HEADING = Double.parseDouble(ReadWriteFile.readFile(headingFile));
+            opMode.telemetry.addData("Heading retrieved", STARTING_HEADING);
+            opMode.telemetry.update();
         } catch(Exception exc) {
             opMode.telemetry.addData("ERROR", "Couldn't read headingFile; will set startingHeading to 0.");
             opMode.telemetry.update();
@@ -861,7 +806,10 @@ public class SteveBase {
         }
     }
 
-    public void resetHeading(){ //Resets the imu heading by adding/subtracting from itself
+    /** In the event that the teleop retrieves a faulty robot heading without running autonomous
+     * first, the driver can simply realign the robot with the field and set that heading as the
+     * starting heading, satisfying the Field-Centric Drive Control of the robot.*/
+    public void resetHeading(){ // Resets the imu heading by adding/subtracting from itself
         if (opMode.gamepad1.b){ // In case somethine goes wrong, driver can reposition the robot and reset the heading during teleop
             angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.RADIANS);
             if (angles.firstAngle > 0){
@@ -874,6 +822,8 @@ public class SteveBase {
         }
     }
 
+    /** Updates drivetrain motor powers based on the driver's right and left joysticks.
+     * Uses Field-centric Driver control for easier driving.*/
     public void updateDriveTrain() {
         angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.RADIANS);
 
@@ -910,10 +860,10 @@ public class SteveBase {
 
     }
 
-    public void controlCollection() {//In case of emergency, driver can take over collection controls
-        //collect if left trigger pressed
-        //needs to be fancified but I don't know how :D
-
+    /** Updates our compliant-wheel intake system based on the operator's left and right triggers.
+     * The driver can steal collection controls in the event that the operator gamepad disconnects
+     * or if we need to test collection with one gamepad controller.*/
+    public void controlCollection() {
         if (driveCollect == false && opMode.gamepad1.dpad_left){
             driveCollect = true;
         }
@@ -928,7 +878,6 @@ public class SteveBase {
                 motorCollectionR.setPower(.3 * opMode.gamepad1.left_trigger);
             }
             //eject if right trigger is pressed
-            //needs to be fancified but I don't know how :D
             else if (opMode.gamepad1.right_trigger > .3) {
                 motorCollectionL.setPower(.5 * opMode.gamepad1.right_trigger);
                 motorCollectionR.setPower(-.5 * opMode.gamepad1.right_trigger);
@@ -946,7 +895,6 @@ public class SteveBase {
                 motorCollectionR.setPower(.3 * opMode.gamepad2.left_trigger);
             }
             //eject if right trigger is pressed
-            //needs to be fancified but I don't know how :D
             else if (opMode.gamepad2.right_trigger > .3) {
                 motorCollectionL.setPower(.5 * opMode.gamepad2.right_trigger);
                 motorCollectionR.setPower(-.5 * opMode.gamepad2.right_trigger);
@@ -959,8 +907,8 @@ public class SteveBase {
         }
     }
 
-
-    public void controlFoundationServos (){ //Control the foundation servos
+    /** Updates our foundation grabber positions with the operator's left and right bumpers.*/
+    public void controlFoundationServos (){
         if (opMode.gamepad1.left_bumper){
             servoFoundationL.setPosition(1);
             servoFoundationR.setPosition(0);
@@ -971,6 +919,7 @@ public class SteveBase {
         }
     }
 
+    /** Updates our parking mechanism with the operator's dpad.*/
     public void parkServo(){ //Extend our parking mechanism
         if (opMode.gamepad2.dpad_down) {
             servoPark.setPower(1);
@@ -983,53 +932,64 @@ public class SteveBase {
         }
     }
 
+    /** Updates our lift and its fourbar arm based on the operator's joysticks.*/
     public void controlLift(double rightStick, double leftStick) { //Control lift motors and linkage servos
-        if (opMode.gamepad2.right_bumper){
-            motorLiftL.setPower(.05);
-            motorLiftR.setPower(.05);
+        if(rightStick == 0){
+            if(!liftLockInPlace){
+                liftPositionLock = motorLiftL.getCurrentPosition();
+                liftLockInPlace = true;
+            }
+            int liftPositionError = liftPositionLock - motorLiftL.getCurrentPosition();
+            motorLiftL.setPower(liftPositionError);
+            motorLiftR.setPower(liftPositionError);
         }
         else {
-            if(Math.signum(-rightStick) == -1) {
+            liftLockInPlace = false;
+            if(Math.signum(-rightStick) == -1) { // Down
                 motorLiftL.setPower(-rightStick/2);
                 motorLiftR.setPower(-rightStick/2);
-            } else {
+            } else {                             // Up
                 motorLiftL.setPower(-rightStick);
                 motorLiftR.setPower(-rightStick);
             }
         }
-
         servoFourbarArmL.setPower(-leftStick);
         servoFourbarArmR.setPower(leftStick);
     }
 
+    /** Updates whether or not the operator wants to do automatic stone grabbing.*/
     public void decideAutoTransfer(){
-        if (opMode.gamepad2.x && autoTransfer == false){
-            autoTransfer = true;
+        if (opMode.gamepad2.x && autoTransferEnabled == false){
+            autoTransferEnabled = true;
         }
-        if (opMode.gamepad2.b && autoTransfer == true){
-            autoTransfer = false;
+        if (opMode.gamepad2.b && autoTransferEnabled == true){
+            autoTransferEnabled = false;
         }
     }
 
-    public void grabStone(){ //Automatically grab stones once they're in the hopper
-
+    /** Automatic stone grabbing using a "state machine" and  the proximity sensor built into the
+     * hopper*/
+    public void grabStone(){
+        // Updates the proximity sensor's readings.
         if (sensorColor.getDistance(DistanceUnit.CM) >= 2){
-            opMode.telemetry.addData("State: ", "Empty");
             hopperState = 0;
         }
         if (sensorColor.getDistance(DistanceUnit.CM) < 2){
-            opMode.telemetry.addData("State: ", "Stone");
             hopperState = 1;
         }
-        opMode.telemetry.update();
-
+        // State machines allow us to run a sequence program within an updating loop.
         switch(transfer.ordinal())  {
+            // If there is a stone in the hopper,
+            // it hasn't already grabbed something,
+            // and we want to collect automatically,
+            // enter the state machine to automatically grab it
             case 0:
-                if (hopperState == 1 && transfer == TransferState.IDLE && autoTransfer == true){ //If there is a stone in the hopper,
-                    transfer = TransferState.LOWERING_LINKAGE;                                   //it hasn't already grabbed something,
-                    transferTimer.reset();                                                       // and we want to collect automatically,
-                }                                                                                //enter the state machine to automatically grab it
+                if (hopperState == 1 && transfer == TransferState.IDLE && autoTransferEnabled){
+                    transfer = TransferState.LOWERING_LINKAGE;
+                    transferTimer.reset();
+                }
                 break;
+            // Lower the fourbar arm on the lift.
             case 1:
                 servoFourbarArmL.setPower(-.3);
                 servoFourbarArmR.setPower(.3);
@@ -1038,10 +998,12 @@ public class SteveBase {
                     transferTimer.reset();
                 }
                 break;
+            // Grab the stone
             case 2:
                 servoGrabber.setPosition(0); //Grab the stone
                 transfer = TransferState.GRABBED;
                 break;
+            // Reset the system once we release the grabber.
             case 3:
                 if (opMode.gamepad2.y){ //Once We open the grabber, reset the system so we can repeat
                     transfer = TransferState.IDLE;
@@ -1049,6 +1011,7 @@ public class SteveBase {
         }
     }
 
+    /** Updates our lift's stone grabber position. Can be used by both the driver and operator.*/
     public void controlServoClaw(){
         if(opMode.gamepad2.y || opMode.gamepad1.y) {
             servoGrabber.setPosition(1);
@@ -1060,6 +1023,7 @@ public class SteveBase {
         }
     }
 
+    /** Updates our capstone deployer. Will be deprecated before states.*/
     public void controlCap(){
         if (opMode.gamepad1.dpad_up){
             servoCapstone.setPower(1);
@@ -1072,6 +1036,7 @@ public class SteveBase {
         }
     }
 
+    /** Changes who gets to control the compliant wheel intake system.*/
     public void switchCollection(){
         if (driveCollect == false && opMode.gamepad1.dpad_up){
             driveCollect = true;
@@ -1081,12 +1046,15 @@ public class SteveBase {
         }
     }
 
+    /** All telemetry readings are posted down here.*/
     public void postTelemetry() {
+        updateOdometry(motorDriveLB, motorDriveRB, motorDriveLF);
+        opMode.telemetry.addLine();
         opMode.telemetry.addData("Running for...", timerOpMode.seconds());
-        opMode.telemetry.addData("autoTransfer: ", "" + autoTransfer);
+        opMode.telemetry.addData("autoTransferEnabled: ", "" + autoTransferEnabled);
         opMode.telemetry.addData("Lift State", transfer);
         opMode.telemetry.addData("Who owns collection?", driveCollect ? "Driver" : "Operator");
-        opMode.telemetry.addData("Foundation Grabbed?", isFoundationGrabbed());
+        opMode.telemetry.addData("Foundation Grabbed?", isFoundationDetected());
         opMode.telemetry.update();
     }
 
